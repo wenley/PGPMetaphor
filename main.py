@@ -19,15 +19,22 @@ def metaphorIndex():
 @app.route("/start_send_task")
 def inital_data_for_sending():
   return json.dumps({
-    'alice': gpg.alice,
-    'bob': gpg.bob,
+    'alice': 0,
+    'bob': 1,
     'message': "Hey Alice, want to talk secretly at the secret place at 10 pm tonight?",
     })
 
 @app.route("/start_verify_message")
 def inital_data_for_verifying():
   message = "Hey, the NSA is onto us. Get packed and meet me at the drop zone."
-  encrypted = gpg.encrypt(message, gpg.me)
+  encrypted = str(gpg.encrypt(message, gpg.keys[2]))
+  signed = str(gpg.sign(encrypted, keyid=gpg.keys[1]))
+  return json.dumps({
+    'ciphertext': signed,
+    'alice': 0,
+    'bob': 1,
+    'me': 2,
+    })
 
 @app.route("/finished")
 def finish_task():
@@ -36,16 +43,23 @@ def finish_task():
 
 @app.route("/action", methods=["POST"])
 def do_action():
+  obj = request.form['object']
   fingerprint = gpg.keys[request.form['key_index']]
   action = request.form['action']
+  data = request.form['data']
   if action == 'lock':
-    pass
+    ciphertext = gpg.encrypt(data, fingerprint)
+    return json.dumps({ 'data': str(ciphertext) })
   elif action == 'sign':
-    pass
+    signed_text = gpg.sign(data, keyid=fingerprint)
+    return json.dumps({ 'data': str(signed_text) })
   elif action == 'unlock':
     pass
   elif action == 'verify':
-    pass
+    if obj == 'image' and fingerprint == gpg.keys[1]:
+      return json.dumps({ 'verified': True })
+    else:
+      return json.dumps({ 'verified': False })
   else:
     return "unrecognized action. Please restart and try again."
 
@@ -66,9 +80,6 @@ def initialize_gpg():
 
   # Adds field for quick access to fingerprints
   gpg.keys = [k['fingerprint'] for k in gpg.list_keys(True)]
-  gpg.alice = keys[0]
-  gpg.bob = keys[1]
-  gpg.me = keys[2]
 
 if __name__ == "__main__":
   initialize_gpg()
